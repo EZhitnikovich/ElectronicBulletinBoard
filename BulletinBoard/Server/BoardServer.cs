@@ -37,22 +37,34 @@ namespace BulletinBoard.Server
             Task.Run(StartServerLoop);
         }
 
+        public void StopServer()
+        {
+            _cancellationToken.Cancel();
+            _listenSocket.Close();
+            OnLog("Server stopped\n");
+        }
+
         private void StartServerLoop()
         {
             while (!_cancellationToken.IsCancellationRequested)
             {
                 _allDone.Reset();
-
                 _listenSocket.BeginAccept(AcceptCallback, _listenSocket);
+                _allDone.WaitOne();
             }
         }
 
         private void AcceptCallback(IAsyncResult ar)
         {
+            if(_cancellationToken.IsCancellationRequested)
+                return;
+
             _allDone.Set();
 
             var listener = (Socket) ar.AsyncState;
             var handler = listener?.EndAccept(ar);
+            if (handler == null) return;
+            OnLog($"User {handler.RemoteEndPoint} connected.\n");
             var state = new StateObject {workSocket = handler};
 
             handler?.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0,
@@ -61,8 +73,6 @@ namespace BulletinBoard.Server
 
         private void ReceiveCallback(IAsyncResult ar)
         {
-            var content = string.Empty;
-
             var state = (StateObject)ar.AsyncState;
             var handler = state?.workSocket;
 
@@ -72,18 +82,35 @@ namespace BulletinBoard.Server
                 bytesRead = handler.EndReceive(ar);
             }
 
-            if (bytesRead > 0)
-            {
-                state?.sb.Append(Encoding.UTF8.GetString(state.buffer, 0, bytesRead));
+            if (state == null || bytesRead <= 0) return;
+            state.sb.Append(Encoding.UTF8.GetString(state.buffer, 0, bytesRead));
 
+            var content = state.sb.ToString();
+
+            if (content.IndexOf("<#EOF#>", StringComparison.Ordinal) > -1)
+            {
+                ProcessCommand(content.Replace("<#EOF#>", ""));
+            }
+            else
+            {
+                handler?.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0,
+                    ReceiveCallback, state);
             }
         }
 
-        public void StopServer()
+        private void ProcessCommand(string command)
         {
-            _cancellationToken.Cancel();
-            _listenSocket.Close();
-            OnLog("Server stopped\n");
+            if (command.StartsWith("[CheckUser]"))
+            {
+                //todo: make user check
+            }
+            switch (command)
+            {
+                case "[GetAll]":break;
+                case "[GetLast]":break;
+                case "[GetFirst]":break;
+                default:return;
+            }
         }
 
         private void OnLog(string message)
