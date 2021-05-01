@@ -1,0 +1,13 @@
+﻿# Default ignored files
+/shelf/
+/workspace.xml
+# Rider ignored files
+/contentModel.xml
+/modules.xml
+/projectSettingsUpdater.xml
+/.idea.ElectronicBulletinBoard.iml
+# Datasource local storage ignored files
+/../../../../../../../../../:\Users\ezhit\source\repos\ElectronicBulletinBoard\.idea\.idea.ElectronicBulletinBoard\.idea/dataSources/
+/dataSources.local.xml
+# Editor-based HTTP Client requests
+/httpRequests/
