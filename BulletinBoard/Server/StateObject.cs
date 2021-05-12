@@ -7,9 +7,9 @@ public class StateObject
 {
     public const int BufferSize = 1024;
 
-    public byte[] buffer = new byte[BufferSize];
+    public byte[] Buffer = new byte[BufferSize];
 
-    public StringBuilder sb = new StringBuilder();
+    public StringBuilder Sb = new StringBuilder();
 
-    public Socket workSocket = null;
+    public Socket WorkSocket = null;
 }

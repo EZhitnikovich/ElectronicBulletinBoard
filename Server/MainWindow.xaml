@@ -3,24 +3,31 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
         xmlns:local="clr-namespace:Server"
         mc:Ignorable="d"
         Title="Server" Height="250" Width="400"
-        ResizeMode="NoResize">
+        ResizeMode="NoResize"
+        Loaded="MainWindow_OnLoaded">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="0.7*"/>
             <ColumnDefinition Width="0.3*"/>
         </Grid.ColumnDefinitions>
-        <TextBox Grid.Column="0" Margin="5" IsReadOnly="True" TextWrapping="Wrap" x:Name="OutputTextBox"/>
+        <TextBox Grid.Column="0" Margin="5" IsReadOnly="True" TextWrapping="Wrap" x:Name="OutputTextBox"
+                 TextChanged="OutputTextBox_OnTextChanged" VerticalScrollBarVisibility="Auto"/>
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="30"/>
                 <RowDefinition Height="30"/>
                 <RowDefinition Height="30"/>
                 <RowDefinition/>
             </Grid.RowDefinitions>
             <Button Grid.Row="0" Content="Запустить" Margin="5" Click="ButtonBase_OnClick"/>
             <Button Grid.Row="1" Content="Остановить" Margin="5" x:Name="CloseButton" Click="CloseButton_OnClick"/>
+            <Label Grid.Row="2" Content="Длина лога:" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <xctk:IntegerUpDown Grid.Row="3" Margin="5" x:Name="LogLength" Minimum="10" Maximum="100" Value="10" AllowTextInput="False"/>
         </Grid>
     </Grid>
 </Window>

@@ -1,15 +1,20 @@
 ﻿using System;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
+using BulletinBoard.Model;
+using CSC = BulletinBoard.Model.ClientServerConfig;
 
 namespace BulletinBoard.Server
 {
     public class BoardServer
     {
         public delegate void BoardServerHandler(string message);
+
         public event BoardServerHandler Log;
 
         public readonly int MaxBacklog = 100;
@@ -18,15 +23,23 @@ namespace BulletinBoard.Server
         private Socket _listenSocket;
 
         private CancellationTokenSource _cancellationToken;
-        private readonly ManualResetEvent _allDone = new ManualResetEvent(false);
+        private ManualResetEvent _allDone = new ManualResetEvent(false);
 
         public BoardServer(IPAddress address, int port)
         {
             _serverEndPoint = new IPEndPoint(address, port);
         }
 
+        /// <summary>
+        /// Start the server
+        /// </summary>
         public void StartServer()
         {
+            if (_listenSocket != null)
+            {
+                OnLog("The server is already started\n");
+                return;
+            }
             OnLog("Server starting...\n");
             _listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             _listenSocket.Bind(_serverEndPoint);
@@ -34,17 +47,24 @@ namespace BulletinBoard.Server
             _cancellationToken = new CancellationTokenSource();
             OnLog("Server started.\n");
 
-            Task.Run(StartServerLoop);
+            Task.Run(StartLoop);
         }
 
+        /// <summary>
+        /// Stop the server
+        /// </summary>
         public void StopServer()
         {
             _cancellationToken.Cancel();
             _listenSocket.Close();
+            _listenSocket = null;
             OnLog("Server stopped\n");
         }
 
-        private void StartServerLoop()
+        /// <summary>
+        /// Start main loop which accepts and processes requests
+        /// </summary>
+        private void StartLoop()
         {
             while (!_cancellationToken.IsCancellationRequested)
             {
@@ -56,63 +76,97 @@ namespace BulletinBoard.Server
 
         private void AcceptCallback(IAsyncResult ar)
         {
+            _allDone.Set();
             if(_cancellationToken.IsCancellationRequested)
                 return;
 
-            _allDone.Set();
-
-            var listener = (Socket) ar.AsyncState;
+            var listener = (Socket)ar.AsyncState;
             var handler = listener?.EndAccept(ar);
+            OnLog($"Client {handler.RemoteEndPoint} connected");
             if (handler == null) return;
-            OnLog($"User {handler.RemoteEndPoint} connected.\n");
-            var state = new StateObject {workSocket = handler};
+            var state = new StateObject { WorkSocket = handler };
 
-            handler?.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0,
-                ReceiveCallback, state);
+            handler.BeginReceive(state.Buffer, 0, StateObject.BufferSize, 0,
+                ReadCallback, state);
         }
 
-        private void ReceiveCallback(IAsyncResult ar)
+        private void ReadCallback(IAsyncResult ar)
         {
-            var state = (StateObject)ar.AsyncState;
-            var handler = state?.workSocket;
+            var content = string.Empty;
 
-            var bytesRead = 0;
-            if (handler != null)
+            var state = (StateObject) ar.AsyncState;
+            var handler = state?.WorkSocket;
+
+            var bytesRead = handler.EndReceive(ar);
+
+            if (bytesRead > 0)
             {
-                bytesRead = handler.EndReceive(ar);
-            }
+                state?.Sb.Append(Encoding.UTF8.GetString(state.Buffer, 0, bytesRead));
 
-            if (state == null || bytesRead <= 0) return;
-            state.sb.Append(Encoding.UTF8.GetString(state.buffer, 0, bytesRead));
-
-            var content = state.sb.ToString();
-
-            if (content.IndexOf("<#EOF#>", StringComparison.Ordinal) > -1)
-            {
-                ProcessCommand(content.Replace("<#EOF#>", ""));
-            }
-            else
-            {
-                handler?.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0,
-                    ReceiveCallback, state);
+                content = state.Sb.ToString();
+                if (content.EndsWith(CSC.EndOfFilePoint))
+                {
+                    OnLog($"Received message from {handler.RemoteEndPoint}");
+                    var result = ProcessCommand(content);
+                    Send(handler, result);
+                }
+                else
+                {
+                    handler.BeginReceive(state.Buffer, 0, StateObject.BufferSize, 0,
+                        ReadCallback, state);
+                }
             }
         }
 
-        private void ProcessCommand(string command)
+        private string ProcessCommand(string content)
         {
-            if (command.StartsWith("[CheckUser]"))
+            var elements = content.Replace(CSC.EndOfFilePoint, "").Split(CSC.CommandSeparator);
+
+            var result = CSC.EndOfFilePoint;
+            var commandHandler = CommandHandler.GetInstance();
+
+            switch (elements[0].ToLower())
             {
-                //todo: make user check
+                case "get":
+                    result = commandHandler.GetBulletins();
+                    break;
+                case "add":
+                    commandHandler.AddBulletin(elements[1..^1]);
+                    break;
+                case "edit":
+                    commandHandler.EditBulletin(elements[1..^1]);
+                    break;
+                case "delete":
+                    commandHandler.DeleteBulletin(elements[1..^1]);
+                    break;
             }
-            switch (command)
-            {
-                case "[GetAll]":break;
-                case "[GetLast]":break;
-                case "[GetFirst]":break;
-                default:return;
-            }
+
+            return result;
         }
 
+        private void Send(Socket handler, string data)
+        {
+            byte[] byteData = Encoding.UTF8.GetBytes(data);
+
+            handler.BeginSend(byteData, 0, byteData.Length, 0,
+                SendCallback, handler);
+        }
+
+        private void SendCallback(IAsyncResult ar)
+        {
+            var handler = (Socket) ar.AsyncState;
+
+            var bytesSend = handler.EndSend(ar);
+            OnLog($"Sent {bytesSend} bytes to client {handler.RemoteEndPoint}");
+
+            handler.Shutdown(SocketShutdown.Both);
+            handler.Close();
+        }
+
+        /// <summary>
+        /// Event handler, writes the log
+        /// </summary>
+        /// <param name="message">String in log</param>
         private void OnLog(string message)
         {
             Log?.Invoke(message);
