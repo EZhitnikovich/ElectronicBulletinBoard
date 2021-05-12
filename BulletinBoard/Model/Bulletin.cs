@@ -17,5 +17,15 @@ namespace BulletinBoard.Model
             Title = title;
             Date = DateTime.Now;
         }
+
+        public static bool operator ==(Bulletin b1, Bulletin b2)
+        {
+            return b1.Image == b2.Image && b1.Content == b2.Content && b1.Title == b2.Title && b1.Date == b2.Date;
+        }
+
+        public static bool operator !=(Bulletin b1, Bulletin b2)
+        {
+            return !(b1 == b2);
+        }
     }
 }

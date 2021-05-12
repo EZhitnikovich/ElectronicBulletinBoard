@@ -133,9 +133,6 @@ namespace BulletinBoard.Server
                 case "add":
                     commandHandler.AddBulletin(elements[1..^1]);
                     break;
-                case "edit":
-                    commandHandler.EditBulletin(elements[1..^1]);
-                    break;
                 case "delete":
                     commandHandler.DeleteBulletin(elements[1..^1]);
                     break;

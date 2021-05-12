@@ -32,7 +32,7 @@ namespace BulletinBoard.Server
 
         public string GetBulletins()
         {
-            return "";
+            return JsonSerializer.Serialize(DeserializeBulletinFromJson());
         }
 
         public void DeleteBulletin(params string[] components)
@@ -42,18 +42,16 @@ namespace BulletinBoard.Server
 
             if (CheckAdministrator(nickname, password))
             {
-
-            }
-        }
-
-        public void EditBulletin(params string[] components)
-        {
-            var nickname = components[0];
-            var password = components[1];
-
-            if (CheckAdministrator(nickname, password))
-            {
-
+                var list = DeserializeBulletinFromJson();
+                var bulletin = JsonSerializer.Deserialize<Bulletin>(components[2]);
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (list[i] == bulletin)
+                    {
+                        list.RemoveAt(i);
+                    }
+                }
+                SerializeBulletinToJson(list);
             }
         }
 
@@ -64,7 +62,30 @@ namespace BulletinBoard.Server
 
             if (CheckAdministrator(nickname, password))
             {
+                var list = DeserializeBulletinFromJson();
+                var bulletin = JsonSerializer.Deserialize<Bulletin>(components[2]);
+                list.Add(bulletin);
+                SerializeBulletinToJson(list);
+            }
+        }
 
+        private List<Bulletin> DeserializeBulletinFromJson()
+        {
+            ValueTask<List<Bulletin>>? bulletinValueTask = null;
+            using (FileStream fs = new FileStream("Bulletins.json", FileMode.OpenOrCreate))
+            {
+                bulletinValueTask = JsonSerializer.DeserializeAsync<List<Bulletin>>(fs);
+            }
+
+            return bulletinValueTask.Value.Result;
+        }
+
+        private void SerializeBulletinToJson(List<Bulletin> bulletins)
+        {
+            using (FileStream fs = new FileStream("Bulletins.json", FileMode.OpenOrCreate))
+            {
+                JsonSerializer.SerializeAsync(fs, bulletins);
+                Console.WriteLine("Data has been saved to file");
             }
         }
 
