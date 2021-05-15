@@ -1,170 +1,93 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Serialization;
-using BulletinBoard.Model;
-using CSC = BulletinBoard.Model.ClientServerConfig;
 
 namespace BulletinBoard.Server
 {
     public class BoardServer
     {
         public delegate void BoardServerHandler(string message);
-
         public event BoardServerHandler Log;
 
-        public readonly int MaxBacklog = 100;
+        private TcpListener _listener;
+        private readonly IPEndPoint _ipEndPoint;
+        protected internal CancellationTokenSource _cancellationToken;
 
-        private readonly IPEndPoint _serverEndPoint;
-        private Socket _listenSocket;
-
-        private CancellationTokenSource _cancellationToken;
-        private ManualResetEvent _allDone = new ManualResetEvent(false);
-
-        public BoardServer(IPAddress address, int port)
+        public BoardServer(IPAddress ipAddress, int port)
         {
-            _serverEndPoint = new IPEndPoint(address, port);
+            _ipEndPoint = new IPEndPoint(ipAddress, port);
         }
 
-        /// <summary>
-        /// Start the server
-        /// </summary>
+        public BoardServer(string hostName, int port)
+        {
+            _ipEndPoint = new IPEndPoint(Dns.GetHostAddresses(hostName).FirstOrDefault() ?? IPAddress.Any, port);
+        }
+
         public void StartServer()
         {
-            if (_listenSocket != null)
-            {
-                OnLog("The server is already started\n");
+            if(_listener != null)
                 return;
-            }
-            OnLog("Server starting...\n");
-            _listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            _listenSocket.Bind(_serverEndPoint);
-            _listenSocket.Listen(MaxBacklog);
+            
+            OnLog("Starting server...\n");
+            _listener = new TcpListener(_ipEndPoint);
             _cancellationToken = new CancellationTokenSource();
+            _listener.Start();
             OnLog("Server started.\n");
 
-            Task.Run(StartLoop);
+            Task.Run(StartListenerLoop);
         }
 
-        /// <summary>
-        /// Stop the server
-        /// </summary>
         public void StopServer()
         {
-            _cancellationToken.Cancel();
-            _listenSocket.Close();
-            _listenSocket = null;
-            OnLog("Server stopped\n");
-        }
-
-        /// <summary>
-        /// Start main loop which accepts and processes requests
-        /// </summary>
-        private void StartLoop()
-        {
-            while (!_cancellationToken.IsCancellationRequested)
-            {
-                _allDone.Reset();
-                _listenSocket.BeginAccept(AcceptCallback, _listenSocket);
-                _allDone.WaitOne();
-            }
-        }
-
-        private void AcceptCallback(IAsyncResult ar)
-        {
-            _allDone.Set();
-            if(_cancellationToken.IsCancellationRequested)
+            if(_listener == null)
                 return;
-
-            var listener = (Socket)ar.AsyncState;
-            var handler = listener?.EndAccept(ar);
-            OnLog($"Client {handler.RemoteEndPoint} connected");
-            if (handler == null) return;
-            var state = new StateObject { WorkSocket = handler };
-
-            handler.BeginReceive(state.Buffer, 0, StateObject.BufferSize, 0,
-                ReadCallback, state);
+            
+            _cancellationToken.Cancel();
+            Disconnect();
+            OnLog("Server stopped.\n");
         }
 
-        private void ReadCallback(IAsyncResult ar)
+        private void StartListenerLoop()
         {
-            var content = string.Empty;
-
-            var state = (StateObject) ar.AsyncState;
-            var handler = state?.WorkSocket;
-
-            var bytesRead = handler.EndReceive(ar);
-
-            if (bytesRead > 0)
+            try
             {
-                state?.Sb.Append(Encoding.UTF8.GetString(state.Buffer, 0, bytesRead));
-
-                content = state.Sb.ToString();
-                if (content.EndsWith(CSC.EndOfFilePoint))
+                while (!_cancellationToken.IsCancellationRequested)
                 {
-                    OnLog($"Received message from {handler.RemoteEndPoint}");
-                    var result = ProcessCommand(content);
-                    Send(handler, result);
+                    var client = _listener.AcceptTcpClient();
+                    OnLog($"{client.Client.RemoteEndPoint} connected.\n");
+                    var clientObject = new ClientObject(client, this);
+                    clientObject.Log += OnLog;
+                    var clientTread = new Thread(clientObject.Process);
+                    clientTread.Start();
                 }
-                else
-                {
-                    handler.BeginReceive(state.Buffer, 0, StateObject.BufferSize, 0,
-                        ReadCallback, state);
-                }
+            }
+            catch (Exception e)
+            {
+                OnLog(e.Message + "\n");
+            }
+            finally
+            {
+                Disconnect();
             }
         }
 
-        private string ProcessCommand(string content)
+        private void Disconnect()
         {
-            var elements = content.Replace(CSC.EndOfFilePoint, "").Split(CSC.CommandSeparator);
-
-            var result = CSC.EndOfFilePoint;
-            var commandHandler = CommandHandler.GetInstance();
-
-            switch (elements[0].ToLower())
+            if (_listener != null)
             {
-                case "get":
-                    result = commandHandler.GetBulletins();
-                    break;
-                case "add":
-                    commandHandler.AddBulletin(elements[1..^1]);
-                    break;
-                case "delete":
-                    commandHandler.DeleteBulletin(elements[1..^1]);
-                    break;
+                _listener.Stop();
+                OnLog("Server disconnected.\n");
             }
 
-            return result;
+            _listener = null;
         }
 
-        private void Send(Socket handler, string data)
-        {
-            byte[] byteData = Encoding.UTF8.GetBytes(data);
-
-            handler.BeginSend(byteData, 0, byteData.Length, 0,
-                SendCallback, handler);
-        }
-
-        private void SendCallback(IAsyncResult ar)
-        {
-            var handler = (Socket) ar.AsyncState;
-
-            var bytesSend = handler.EndSend(ar);
-            OnLog($"Sent {bytesSend} bytes to client {handler.RemoteEndPoint}");
-
-            handler.Shutdown(SocketShutdown.Both);
-            handler.Close();
-        }
-
-        /// <summary>
-        /// Event handler, writes the log
-        /// </summary>
-        /// <param name="message">String in log</param>
-        private void OnLog(string message)
+        protected virtual void OnLog(string message)
         {
             Log?.Invoke(message);
         }

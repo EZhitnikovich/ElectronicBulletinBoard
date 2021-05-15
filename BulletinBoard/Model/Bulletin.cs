@@ -1,31 +1,43 @@
 ﻿using System;
 using System.Drawing.Imaging;
+using System.Globalization;
 
 namespace BulletinBoard.Model
 {
     public class Bulletin
     {
-        public object Image { get; set; }
+        public string ImagePath { get; set; }
         public string Content { get; set; }
         public string Title { get; set; }
-        public DateTime Date { get; }
+        public DateTime Date { get; set; }
 
-        public Bulletin(object image, string content, string title)
+        public Bulletin(string imagePath, string content, string title)
         {
-            Image = image;
+            ImagePath = imagePath;
             Content = content;
             Title = title;
             Date = DateTime.Now;
         }
 
-        public static bool operator ==(Bulletin b1, Bulletin b2)
+        public Bulletin()
         {
-            return b1.Image == b2.Image && b1.Content == b2.Content && b1.Title == b2.Title && b1.Date == b2.Date;
         }
 
-        public static bool operator !=(Bulletin b1, Bulletin b2)
+        public override bool Equals(object? obj)
         {
-            return !(b1 == b2);
+            if (obj.GetType() != this.GetType()) return false;
+            var bul = obj as Bulletin;
+            return ImagePath == bul.ImagePath && Content == bul.Content && Title == bul.Title && Date == bul.Date;
+        }
+
+        protected bool Equals(Bulletin other)
+        {
+            return ImagePath == other.ImagePath && Content == other.Content && Title == other.Title && Date.Equals(other.Date);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(ImagePath, Content, Title, Date);
         }
     }
 }

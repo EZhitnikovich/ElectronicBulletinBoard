@@ -8,7 +8,8 @@
         mc:Ignorable="d"
         Title="Server" Height="250" Width="400"
         ResizeMode="NoResize"
-        Loaded="MainWindow_OnLoaded">
+        Loaded="MainWindow_OnLoaded"
+        Closed="MainWindow_OnClosed">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="0.7*"/>

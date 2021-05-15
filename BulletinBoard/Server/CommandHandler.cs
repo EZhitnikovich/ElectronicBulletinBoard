@@ -46,7 +46,7 @@ namespace BulletinBoard.Server
                 var bulletin = JsonSerializer.Deserialize<Bulletin>(components[2]);
                 for (int i = 0; i < list.Count; i++)
                 {
-                    if (list[i] == bulletin)
+                    if (list[i].Equals(bulletin))
                     {
                         list.RemoveAt(i);
                     }
@@ -71,21 +71,24 @@ namespace BulletinBoard.Server
 
         private List<Bulletin> DeserializeBulletinFromJson()
         {
-            ValueTask<List<Bulletin>>? bulletinValueTask = null;
-            using (FileStream fs = new FileStream("Bulletins.json", FileMode.OpenOrCreate))
+            string content = string.Empty;
+            using (StreamReader sr = new StreamReader("Bulletins.json"))
             {
-                bulletinValueTask = JsonSerializer.DeserializeAsync<List<Bulletin>>(fs);
+                content = sr.ReadToEnd();
             }
 
-            return bulletinValueTask.Value.Result;
+            var bulletins = JsonSerializer.Deserialize<List<Bulletin>>(content);
+            
+            return bulletins;
         }
 
         private void SerializeBulletinToJson(List<Bulletin> bulletins)
         {
-            using (FileStream fs = new FileStream("Bulletins.json", FileMode.OpenOrCreate))
+            var serialized = JsonSerializer.Serialize(bulletins);
+
+            using (var sw = new StreamWriter("Bulletins.json"))
             {
-                JsonSerializer.SerializeAsync(fs, bulletins);
-                Console.WriteLine("Data has been saved to file");
+                sw.Write(serialized);
             }
         }
 
@@ -96,13 +99,15 @@ namespace BulletinBoard.Server
                 return false;
             }
 
-            ValueTask<List<User>>? users = null;
-            using (var fs = new FileStream("Users.json", FileMode.OpenOrCreate))
+            string content = string.Empty;
+            using (StreamReader sr = new StreamReader("Users.json"))
             {
-                users = JsonSerializer.DeserializeAsync<List<User>>(fs);
+                content = sr.ReadToEnd();
             }
 
-            return users.Value.Result.Any(x => x.Password == password && x.Nickname == nickname);
+            var users = JsonSerializer.Deserialize<List<User>>(content);
+
+            return users.Any(x => x.Password == password && x.Nickname == nickname);
         }
     }
 }
