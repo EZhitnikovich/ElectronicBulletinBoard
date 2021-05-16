@@ -64,9 +64,17 @@ namespace BulletinBoard.Server
             {
                 var list = DeserializeBulletinFromJson();
                 var bulletin = JsonSerializer.Deserialize<Bulletin>(components[2]);
-                list.Add(bulletin);
+                list.Insert(0, bulletin);
                 SerializeBulletinToJson(list);
             }
+        }
+
+        public string CheckAdministrator(params string[] components)
+        {
+            var nickname = components[0];
+            var password = components[1];
+
+            return CheckAdministrator(nickname, password).ToString();
         }
 
         private List<Bulletin> DeserializeBulletinFromJson()
@@ -84,7 +92,10 @@ namespace BulletinBoard.Server
 
         private void SerializeBulletinToJson(List<Bulletin> bulletins)
         {
-            var serialized = JsonSerializer.Serialize(bulletins);
+            var serialized = JsonSerializer.Serialize(bulletins, new JsonSerializerOptions()
+            {
+                WriteIndented = true
+            });
 
             using (var sw = new StreamWriter("Bulletins.json"))
             {

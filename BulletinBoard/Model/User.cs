@@ -8,5 +8,16 @@ namespace BulletinBoard.Model
     {
         public string Nickname { get; set; }
         public string Password { get; set; }
+
+        public User(string nickname, string password)
+        {
+            Nickname = nickname;
+            Password = password;
+        }
+
+        public User()
+        {
+
+        }
     }
 }

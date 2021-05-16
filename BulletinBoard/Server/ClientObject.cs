@@ -71,10 +71,13 @@ namespace BulletinBoard.Server
                     result = commandHandler.GetBulletins();
                     break;
                 case "add":
-                    commandHandler.AddBulletin(elements[1..^1]);
+                    commandHandler.AddBulletin(elements[1..]);
                     break;
                 case "delete":
-                    commandHandler.DeleteBulletin(elements[1..^1]);
+                    commandHandler.DeleteBulletin(elements[1..]);
+                    break;
+                case "admin":
+                    result = commandHandler.CheckAdministrator(elements[1..]);
                     break;
             }
 

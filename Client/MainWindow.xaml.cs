@@ -14,13 +14,10 @@ namespace Client
     /// </summary>
     public partial class MainWindow : Window
     {
-        private ObservableCollection<Bulletin> bulletins;
-
         public MainWindow()
         {
             InitializeComponent();
-            bulletins = new ObservableCollection<Bulletin>();
-            BulletinsList.ItemsSource = bulletins;
+            
         }
 
         private BoardClient client;
@@ -30,35 +27,12 @@ namespace Client
             client = new BoardClient(IPAddress.Parse("127.0.0.1"), 11000);
             client.StartClient();
             Task.Run(CheckConnection);
+            Content = new LoginPage(client, this);
         }
 
-        private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
-        {
-            var bltns = GetBulletins();
-            RefillBulletins(bltns);
-        }
-
-        private void RefillBulletins(List<Bulletin> bltns)
-        {
-            if (bltns == null)
-                return;
-
-            bulletins.Clear();
-
-            foreach (var bulletin in bltns)
-            {
-                bulletins.Add(bulletin);
-            }
-        }
-
-        private List<Bulletin> GetBulletins()
-        {
-            if (client == null)
-                return null;
-
-            return client.GetAllBulletins();
-        }
-
+        /// <summary>
+        /// Background connection check
+        /// </summary>
         private void CheckConnection()
         {
             while (true)
@@ -68,6 +42,11 @@ namespace Client
             }
         }
 
+        /// <summary>
+        /// Stopping the client after closing the form
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void MainWindow_OnClosed(object? sender, EventArgs e)
         {
             if (client == null)
